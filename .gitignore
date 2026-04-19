@@ -1,0 +1,24 @@
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+venv/
+.env
+
+# Data and Models
+models_saved/
+data/
+
+# Notebooks
+.ipynb_checkpoints
+
+# Android
+.gradle/
+build/
+local.properties
+.idea/
+*.iml
+captures/
+.externalNativeBuild
+.cxx
+local.properties
