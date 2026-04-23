@@ -3,7 +3,6 @@ import os
 import torch
 import numpy as np
 
-# Add src to path
 sys.path.append(os.path.join(os.getcwd(), 'src'))
 
 try:

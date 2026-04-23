@@ -12,7 +12,7 @@
         android:id="@+id/titleTextView"
         android:layout_width="wrap_content"
         android:layout_height="wrap_content"
-        android:text="Biceps Curl Classifier"
+        android:text="Biceps Curl Classifier For Mr Bennis Abderrahman"
         android:textSize="24sp"
         android:textStyle="bold"
         android:textColor="#333333"
@@ -107,6 +107,29 @@
             android:text="I"
             android:backgroundTint="#F44336"
             android:enabled="false"/>
+    </LinearLayout>
+
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:orientation="horizontal"
+        android:gravity="center"
+        android:layout_marginTop="16dp">
+
+        <Button
+            android:id="@+id/recordPerfectVoiceButton"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="Rec P Voice"
+            android:backgroundTint="#4CAF50"
+            android:layout_marginEnd="8dp"/>
+
+        <Button
+            android:id="@+id/recordImperfectVoiceButton"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="Rec I Voice"
+            android:backgroundTint="#F44336"/>
     </LinearLayout>
 
     <TextView

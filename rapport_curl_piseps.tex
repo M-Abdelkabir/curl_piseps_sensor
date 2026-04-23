@@ -1,0 +1,128 @@
+\documentclass[12pt,a4paper]{article}
+\usepackage[utf8]{inputenc}
+\usepackage[T1]{fontenc}
+\usepackage[french,english]{babel}
+\usepackage{graphicx}
+\usepackage{listings}
+\usepackage{xcolor}
+\usepackage{hyperref}
+\usepackage{geometry}
+\usepackage{amsmath}
+
+\geometry{margin=2.5cm}
+
+\definecolor{codegreen}{rgb}{0,0.6,0}
+\definecolor{codegray}{rgb}{0.5,0.5,0.5}
+\definecolor{codepurple}{rgb}{0.58,0,0.82}
+\definecolor{backcolour}{rgb}{0.95,0.95,0.92}
+
+\lstset{
+    backgroundcolor=\color{backcolour},   
+    commentstyle=\color{codegreen},
+    keywordstyle=\color{magenta},
+    numberstyle=\tiny\color{codegray},
+    stringstyle=\color{codepurple},
+    basicstyle=\ttfamily\footnotesize,
+    breakatwhitespace=false,         
+    breaklines=true,                 
+    captionpos=b,                    
+    keepspaces=true,                 
+    numbers=left,                    
+    numbersep=5pt,                  
+    showspaces=false,                
+    showstringspaces=false,
+    showtabs=false,                  
+    tabsize=2
+}
+
+\title{\textbf{Système Intelligent de Classification des Biceps Curls \\ Du Modèle PyTorch à l'Application Mobile}}
+\author{Équipe AMAN\_AI}
+\date{Avril 2026}
+
+\begin{document}
+
+\maketitle
+
+\begin{abstract}
+Ce rapport présente la conception et l'implémentation d'un système complet de classification de la qualité des exercices de musculation (biceps curls). Le projet combine une phase d'entraînement d'un réseau de neurones convolutifs 1D (CNN1D) avec PyTorch et un déploiement temps réel sur Android utilisant PyTorch Mobile, incluant des mécanismes de feedback matériel (flash, vibrations, voix).
+\end{abstract}
+
+\tableofcontents
+\newpage
+
+\section{Introduction}
+L'objectif de cette application est d'aider les utilisateurs à monitorer la forme de leur mouvement lors d'un exercice de flexion du biceps (Biceps Curl). Le système distingue deux classes : \textit{"Perfect"} (exécution correcte) et \textit{"Imperfect"} (exécution incorrecte), en analysant les données inertielles collectées par les capteurs du smartphone.
+
+\section{Partie 1 : Pipeline PyTorch - Entraînement du Modèle}
+
+\subsection{Collecte et Structure des Données}
+Les données sont collectées à partir de l'accéléromètre et du gyroscope à une fréquence de 50 Hz. Chaque échantillon est stocké dans un dossier horodaté contenant :
+\begin{itemize}
+    \item \texttt{Accelerometer.csv} (axes X, Y, Z)
+    \item \texttt{Gyroscope.csv} (axes X, Y, Z)
+\end{itemize}
+
+\subsection{Prétraitement des Signaux}
+Pour garantir une classification robuste, les données subissent plusieurs étapes de transformation :
+\begin{enumerate}
+    \item \textbf{Filtrage} : Application d'un filtre passe-bas de Butterworth d'ordre 4 avec une fréquence de coupure de 10 Hz pour éliminer le bruit haute fréquence.
+    \item \textbf{Normalisation} : Mise à l'échelle (Z-score) pour chaque canal (soustraction de la moyenne et division par l'écart-type).
+    \item \textbf{Fenêtrage} : Découpage des signaux en fenêtres de 100 échantillons (2 secondes de mouvement) avec un chevauchement de 50\%.
+\end{enumerate}
+
+\subsection{Architecture du Réseau de Neurones (CNN 1D)}
+Le modèle est un CNN 1D optimisé pour les séries temporelles multicanaux :
+\begin{itemize}
+    \item \textbf{Entrée} : 6 canaux (3 accel + 3 gyro) x 100 points.
+    \item \textbf{Couche Convolutive 1} : 32 filtres (taille 5) + ReLU + MaxPool (taille 2).
+    \item \textbf{Couche Convolutive 2} : 64 filtres (taille 5) + ReLU + MaxPool (taille 2).
+    \item \textbf{Couches Denses} : Une couche cachée de 128 neurones avec Dropout (0.3) et une couche de sortie de 2 neurones (Logits).
+\end{itemize}
+
+\subsection{Exportation pour Android}
+Une fois entraîné, le modèle est converti au format TorchScript via \texttt{torch.jit.script} et optimisé pour mobile (\texttt{optimize\_for\_mobile}) afin d'être chargé par la bibliothèque LiteModule de PyTorch Mobile.
+
+\newpage
+\section{Partie 2 : Application Mobile - Implémentation Android}
+
+\subsection{Chargement du Modèle et Inférence}
+L'application Android utilise \texttt{LiteModuleLoader} pour charger le fichier \texttt{.pt} depuis les assets. L'inférence est effectuée de deux manières :
+\begin{itemize}
+    \item \textbf{Monitoring} : Analyse continue des tampons de données.
+    \item \textbf{Analyse Finale} : Calcul de la moyenne des probabilités Softmax sur l'ensemble de la séquence enregistrée pour une décision plus fiable.
+\end{itemize}
+
+\subsection{Gestion du Signal en Kotlin}
+Le filtrage de Butterworth est réimplémenté manuellement en Kotlin pour assurer une parfaite symétrie avec le pipeline Python :
+\begin{lstlisting}[language=Kotlin]
+private fun applyFilter(value: Float, channel: Int): Float {
+    val y = b[0] * value + filterStatesX[channel][0]
+    filterStatesX[channel][0] = b[1] * value - a[1] * y + filterStatesX[channel][1]
+    // ... suite de l'application des coefficients a et b
+    return y
+}
+\end{lstlisting}
+
+\subsection{Mécanismes de Feedback (Interaction Matérielle)}
+Un système de feedback innovant a été intégré pour réagir instantanément au résultat :
+\begin{itemize}
+    \item \textbf{Cas "Perfect"} : Allumage de la LED Flash de la caméra pendant 1 seconde via \texttt{CameraManager} et lecture d'un message vocal personnalisé.
+    \item \textbf{Cas "Imperfect"} : Vibration haptique intense pendant 1 seconde et lecture d'une commande vocale corrective.
+\end{itemize}
+
+\subsection{Enregistrement Vocal Personnalisé}
+L'utilisateur peut enregistrer ses propres instructions vocales pour chaque cas directement dans l'interface grâce à l'intégration de \texttt{MediaRecorder} et \texttt{MediaPlayer}, stockant les clips en format AMR-NB.
+
+\subsection{Autorisations et Sécurité}
+L'application gère les permissions dynamiques pour :
+\begin{itemize}
+    \item \texttt{CAMERA} : Accès au flash.
+    \item \texttt{RECORD\_AUDIO} : Utilisation du microphone pour les voix personnalisées.
+    \item \texttt{VIBRATE} : Retour haptique.
+    \item \texttt{HIGH\_SAMPLING\_RATE\_SENSORS} : Données inertielles haute fréquence.
+\end{itemize}
+
+\section{Conclusion}
+Ce projet démontre la puissance de l'intégration de l'IA (Deep Learning) au sein de dispositifs mobiles. En passant par un pipeline rigoureux sous PyTorch et une implémentation logicielle/matérielle optimisée sur Android, nous avons créé un outil interactif capable de guider les sportifs dans leur pratique quotidienne.
+
+\end{document}

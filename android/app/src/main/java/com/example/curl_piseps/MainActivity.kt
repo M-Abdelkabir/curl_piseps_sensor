@@ -6,6 +6,14 @@ import android.hardware.SensorEvent
 import android.hardware.SensorEventListener
 import android.hardware.SensorManager
 import android.os.Bundle
+import android.os.VibrationEffect
+import android.os.Vibrator
+import android.os.VibratorManager
+import android.os.Build
+import android.media.MediaRecorder
+import android.media.MediaPlayer
+import android.media.ToneGenerator
+import android.hardware.camera2.CameraManager
 import android.util.Log
 import android.widget.Button
 import android.widget.TextView
@@ -40,6 +48,18 @@ class MainActivity : AppCompatActivity(), SensorEventListener {
     private lateinit var recordButton: Button
     private lateinit var perfectButton: Button
     private lateinit var imperfectButton: Button
+    private lateinit var recordPerfectVoiceButton: Button
+    private lateinit var recordImperfectVoiceButton: Button
+
+    private var cameraManager: CameraManager? = null
+    private var cameraId: String? = null
+    private var vibrator: Vibrator? = null
+    private var mediaRecorder: MediaRecorder? = null
+    private var mediaPlayer: MediaPlayer? = null
+
+    private var isRecordingVoice = false
+    private lateinit var perfectVoicePath: String
+    private lateinit var imperfectVoicePath: String
 
     private var isSensing = false
     private var isRecording = false
@@ -114,6 +134,44 @@ class MainActivity : AppCompatActivity(), SensorEventListener {
 
             imperfectButton.setOnClickListener {
                 saveRecording("imperfect")
+            }
+
+            // Request Permissions
+            val permissions = arrayOf(
+                android.Manifest.permission.CAMERA,
+                android.Manifest.permission.RECORD_AUDIO
+            )
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
+                requestPermissions(permissions, 100)
+            }
+
+            // Initialize Feedback Managers
+            cameraManager = getSystemService(Context.CAMERA_SERVICE) as CameraManager
+            cameraId = cameraManager?.cameraIdList?.firstOrNull { id ->
+                val characteristics = cameraManager?.getCameraCharacteristics(id)
+                characteristics?.get(android.hardware.camera2.CameraCharacteristics.FLASH_INFO_AVAILABLE) == true
+            }
+
+            vibrator = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
+                val vibratorManager = getSystemService(Context.VIBRATOR_MANAGER_SERVICE) as VibratorManager
+                vibratorManager.defaultVibrator
+            } else {
+                @Suppress("DEPRECATION")
+                getSystemService(Context.VIBRATOR_SERVICE) as Vibrator
+            }
+
+            perfectVoicePath = "${getExternalFilesDir(null)}/perfect_voice.3gp"
+            imperfectVoicePath = "${getExternalFilesDir(null)}/imperfect_voice.3gp"
+
+            recordPerfectVoiceButton = findViewById(R.id.recordPerfectVoiceButton)
+            recordImperfectVoiceButton = findViewById(R.id.recordImperfectVoiceButton)
+
+            recordPerfectVoiceButton.setOnClickListener {
+                handleVoiceRecording(perfectVoicePath, recordPerfectVoiceButton)
+            }
+
+            recordImperfectVoiceButton.setOnClickListener {
+                handleVoiceRecording(imperfectVoicePath, recordImperfectVoiceButton)
             }
         } catch (e: Exception) {
             Log.e("MainActivity", "Error in onCreate", e)
@@ -318,6 +376,7 @@ class MainActivity : AppCompatActivity(), SensorEventListener {
                     runOnUiThread {
                         resultTextView.text = "Final Result: $label\n(Avg P: ${String.format("%.2f", avgPerfect)}, I: ${String.format("%.2f", avgImperfect)})"
                         statusTextView.text = "Status: Analysis Complete"
+                        triggerFeedback(label == "Perfect")
                     }
                 }
             } catch (e: Exception) {
@@ -392,6 +451,98 @@ class MainActivity : AppCompatActivity(), SensorEventListener {
                 os.flush()
             }
             return file.absolutePath
+        }
+    }
+
+    private fun handleVoiceRecording(path: String, button: Button) {
+        if (isRecordingVoice) {
+            stopVoiceRecording()
+            button.text = if (path == perfectVoicePath) "Rec P Voice" else "Rec I Voice"
+        } else {
+            startVoiceRecording(path)
+            button.text = "Stop Rec"
+        }
+    }
+
+    private fun startVoiceRecording(path: String) {
+        try {
+            mediaRecorder = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
+                MediaRecorder(this)
+            } else {
+                @Suppress("DEPRECATION")
+                MediaRecorder()
+            }
+            mediaRecorder?.apply {
+                setAudioSource(MediaRecorder.AudioSource.MIC)
+                setOutputFormat(MediaRecorder.OutputFormat.THREE_GPP)
+                setOutputFile(path)
+                setAudioEncoder(MediaRecorder.AudioEncoder.AMR_NB)
+                prepare()
+                start()
+            }
+            isRecordingVoice = true
+            Toast.makeText(this, "Recording...", Toast.LENGTH_SHORT).show()
+        } catch (e: Exception) {
+            Log.e("VoiceRecord", "Error starting recording", e)
+            Toast.makeText(this, "Record Error: ${e.message}", Toast.LENGTH_SHORT).show()
+        }
+    }
+
+    private fun stopVoiceRecording() {
+        try {
+            mediaRecorder?.apply {
+                stop()
+                release()
+            }
+            mediaRecorder = null
+            isRecordingVoice = false
+            Toast.makeText(this, "Recording Saved", Toast.LENGTH_SHORT).show()
+        } catch (e: Exception) {
+            Log.e("VoiceRecord", "Error stopping recording", e)
+        }
+    }
+
+    private fun playVoice(path: String) {
+        val file = File(path)
+        if (!file.exists()) return
+        
+        try {
+            mediaPlayer?.release()
+            mediaPlayer = MediaPlayer().apply {
+                setDataSource(path)
+                prepare()
+                start()
+            }
+        } catch (e: Exception) {
+            Log.e("VoicePlay", "Error playing voice", e)
+        }
+    }
+
+    private fun triggerFeedback(isPerfect: Boolean) {
+        if (isPerfect) {
+            // Flash for Perfect
+            cameraId?.let { id ->
+                try {
+                    cameraManager?.setTorchMode(id, true)
+                    Timer().schedule(object : TimerTask() {
+                        override fun run() {
+                            cameraManager?.setTorchMode(id, false)
+                        }
+                    }, 1000)
+                } catch (e: Exception) {
+                    Log.e("Flash", "Error toggling flash", e)
+                }
+            }
+            playVoice(perfectVoicePath)
+        } else {
+            // Vibration for Imperfect
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+                vibrator?.vibrate(VibrationEffect.createOneShot(1000, VibrationEffect.DEFAULT_AMPLITUDE))
+            } else {
+                @Suppress("DEPRECATION")
+                vibrator?.vibrate(1000)
+            }
+            playVoice(imperfectVoicePath)
         }
     }
 }
