@@ -1,0 +1,2 @@
+version,device name,recording epoch time,recording time,recording timezone,platform,appVersion,device id,sensors,sampleRateMs,standardisation,platform version
+3,vivo 1820,1776592592685,2026-04-19_09-56-32,Africa/Casablanca,android,1.57.0,35bf56a7-1fd8-4273-a83d-2ba984ce1a0d,Accelerometer|Gyroscope|Annotation|TotalAcceleration|GyroscopeUncalibrated|AccelerometerUncalibrated,10|10||10|10|10,false,27

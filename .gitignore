@@ -6,8 +6,6 @@ venv/
 .env
 
 # Data and Models
-models_saved/
-data/
 
 # Notebooks
 .ipynb_checkpoints
