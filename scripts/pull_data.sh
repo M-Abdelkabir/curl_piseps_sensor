@@ -1,15 +1,12 @@
 #!/bin/bash
 
-# Configuration
 PACKAGE_NAME="com.example.curl_piseps"
 REMOTE_PATH="/sdcard/Android/data/$PACKAGE_NAME/files/data"
 LOCAL_PATH="./data"
 
-# Try to find adb
 ADB_CMD="adb"
 
 if ! command -v adb &> /dev/null; then
-    # Try to find from local.properties
     if [ -f "android/local.properties" ]; then
         SDK_DIR=$(grep "^sdk.dir=" android/local.properties | cut -d'=' -f2)
         if [ -n "$SDK_DIR" ] && [ -f "$SDK_DIR/platform-tools/adb" ]; then
@@ -27,7 +24,6 @@ fi
 echo "Using adb: $ADB_CMD"
 echo "Pulling data from $REMOTE_PATH to $LOCAL_PATH..."
 
-# Ensure local directories exist
 mkdir -p "$LOCAL_PATH/perfect"
 mkdir -p "$LOCAL_PATH/imperfect"
 
